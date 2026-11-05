@@ -1,0 +1,146 @@
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+void main() {
+  runApp(const BarberApp());
+}
+
+class BarberApp extends StatelessWidget {
+  const BarberApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Sirojiddin Barber',
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: const HomeScreen(),
+    );
+  }
+}
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  // https://surkhandc.uz/order/hosting (Masalan: https://sizin-domen.uz)
+  final String baseUrl = "/www/s196.surkhandc2.uz"; 
+  
+  List services = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchServices();
+  }
+
+  Future<void> fetchServices() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/api/services'));
+      if (response.statusCode == 200) {
+        setState(() {
+          services = json.decode(response.body);
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("Xatolik: $e");
+    }
+  }
+
+  Future<void> bookAppointment(String serviceName, String phone, String userName) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/book'),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode({
+          "user_id": 999999,
+          "user_name": userName,
+          "phone": phone,
+          "service_name": serviceName,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Navbatga muvaffaqiyatli yozildingiz!")),
+        );
+      }
+    } catch (e) {
+      print("Xatolik: $e");
+    }
+  }
+
+  void showBookingDialog(String serviceName) {
+    TextEditingController nameController = TextEditingController();
+    TextEditingController phoneController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Navbatga yozilish: $serviceName"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: "Ismingiz"),
+            ),
+            TextField(
+              controller: phoneController,
+              decoration: const InputDecoration(labelText: "Telefon raqamingiz"),
+              keyboardType: TextInputType.phone,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Bekor qilish"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (nameController.text.isNotEmpty && phoneController.text.isNotEmpty) {
+                bookAppointment(serviceName, phoneController.text, nameController.text);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text("Tasdiqlash"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("✂️ Sirojiddin Barbershop")),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              itemCount: services.length,
+              itemBuilder: (context, index) {
+                final s = services[index];
+                return Card(
+                  margin: const EdgeInsets.all(8.0),
+                  child: ListTile(
+                    title: Text(s['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text("Narxi: ${s['price']}"),
+                    trailing: ElevatedButton(
+                      onPressed: () => showBookingDialog(s['name']),
+                      child: const Text("Yozilish"),
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
